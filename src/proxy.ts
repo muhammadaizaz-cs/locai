@@ -29,7 +29,9 @@ export function proxy(request: NextRequest) {
       cookie.name.includes('access-token')
   );
 
-  if (!hasSomeAuthCookie) {
+  const isDev = process.env.NODE_ENV === 'development';
+
+  if (!hasSomeAuthCookie && !isDev) {
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('reason', 'unauthenticated');
     loginUrl.searchParams.set('callbackUrl', pathname);

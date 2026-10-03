@@ -24,48 +24,93 @@ export interface AdminSession {
  *
  * Returns null if not authenticated or Supabase is not configured.
  */
+import { cookies } from 'next/headers';
+import { createServerClient } from '@supabase/ssr';
+
 export async function getAdminSession(): Promise<AdminSession | null> {
-  if (!isServerSupabaseConfigured()) {
-    // Supabase not configured — no admin access possible
-    return null;
-  }
-
+  // 1. Try reading the authenticated user using Supabase SSR client
   try {
-    // Verify the authenticated user from the JWT in cookies
-    const {
-      data: { user },
-      error: authError,
-    } = await supabaseAdmin.auth.getUser();
+    const cookieStore = await cookies();
 
-    if (authError || !user) {
-      return null;
+    if (
+      process.env.NEXT_PUBLIC_SUPABASE_URL &&
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY &&
+      !process.env.NEXT_PUBLIC_SUPABASE_URL.includes('placeholder')
+    ) {
+      const supabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+        {
+          cookies: {
+            getAll() {
+              return cookieStore.getAll();
+            },
+            setAll(cookiesToSet) {
+              try {
+                cookiesToSet.forEach(({ name, value, options }) =>
+                  cookieStore.set(name, value, options)
+                );
+              } catch {
+                // Server Components cannot set cookies
+              }
+            },
+          },
+        }
+      );
+
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+
+      if (!authError && user) {
+        // Query user's verified role and status from profiles table
+        const { data: profile, error: profileError } = await supabaseAdmin
+          .from('profiles')
+          .select('id, email, full_name, role, status')
+          .eq('id', user.id)
+          .single();
+
+        if (!profileError && profile) {
+          if (profile.status && profile.status !== 'active') {
+            return null;
+          }
+
+          const userRole = (profile.role || 'user') as AdminRole;
+          if (userRole === 'admin' || userRole === 'super_admin') {
+            return {
+              userId: profile.id,
+              email: profile.email,
+              role: userRole,
+              fullName: profile.full_name || null,
+            };
+          }
+
+          // Authenticated but not an admin role
+          return {
+            userId: profile.id,
+            email: profile.email,
+            role: 'user',
+            fullName: profile.full_name || null,
+          };
+        }
+      }
     }
-
-    // Fetch their profile including role using service role (bypasses RLS)
-    const { data: profile, error: profileError } = await supabaseAdmin
-      .from('profiles')
-      .select('id, email, full_name, role, status')
-      .eq('id', user.id)
-      .single();
-
-    if (profileError || !profile) {
-      return null;
-    }
-
-    // Suspended/banned users cannot access admin
-    if (profile.status && profile.status !== 'active') {
-      return null;
-    }
-
-    return {
-      userId: profile.id,
-      email: profile.email,
-      role: (profile.role || 'user') as AdminRole,
-      fullName: profile.full_name || null,
-    };
-  } catch {
-    return null;
+  } catch (err) {
+    console.error('getAdminSession error checking Supabase:', err);
   }
+
+  // 2. In local development mode, support preview admin session when running locally
+  if (process.env.NODE_ENV === 'development') {
+    return {
+      userId: 'admin_locai_dev',
+      email: 'admin@locai.dev',
+      role: 'super_admin',
+      fullName: 'LocAI Super Admin',
+    };
+  }
+
+  return null;
 }
 
 /**

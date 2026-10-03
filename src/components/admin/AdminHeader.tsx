@@ -3,14 +3,35 @@
 import React, { useState } from 'react';
 import { Menu, Bell, Shield, Search, AlertTriangle } from 'lucide-react';
 
+import { usePathname } from 'next/navigation';
+
 interface AdminHeaderProps {
   onToggleSidebar: () => void;
-  pageTitle: string;
+  pageTitle?: string;
   criticalAlerts?: number;
 }
 
+const ROUTE_TITLES: Record<string, string> = {
+  '/admin': 'Dashboard',
+  '/admin/dashboard': 'Dashboard',
+  '/admin/users': 'Users',
+  '/admin/organizations': 'Organizations',
+  '/admin/subscriptions': 'Subscriptions',
+  '/admin/payments': 'Payments',
+  '/admin/ai-usage': 'AI Usage',
+  '/admin/wordpress-sites': 'WordPress Sites',
+  '/admin/content': 'Content',
+  '/admin/activity-logs': 'Activity Logs',
+  '/admin/system-alerts': 'System Alerts',
+  '/admin/support': 'Support',
+  '/admin/settings': 'Settings',
+};
+
 export function AdminHeader({ onToggleSidebar, pageTitle, criticalAlerts = 0 }: AdminHeaderProps) {
   const [showSearch, setShowSearch] = useState(false);
+  const pathname = usePathname();
+
+  const title = pageTitle || ROUTE_TITLES[pathname] || 'Control Center';
 
   return (
     <header className="sticky top-0 z-30 flex h-14 w-full items-center justify-between border-b border-slate-800/80 bg-[#0a0e1a]/90 px-4 sm:px-6 backdrop-blur-md">
@@ -32,7 +53,7 @@ export function AdminHeader({ onToggleSidebar, pageTitle, criticalAlerts = 0 }: 
             <span className="text-[11px] font-semibold text-purple-300 uppercase tracking-wider">Admin</span>
           </div>
           <span className="text-slate-600">/</span>
-          <span className="text-sm font-medium text-slate-300">{pageTitle}</span>
+          <span className="text-sm font-medium text-slate-300">{title}</span>
         </div>
       </div>
 

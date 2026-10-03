@@ -7,7 +7,7 @@ import type { AdminRole } from '@/lib/admin/auth';
 
 interface AdminShellProps {
   children: React.ReactNode;
-  pageTitle: string;
+  pageTitle?: string;
   userRole: AdminRole;
   userEmail: string;
   userName: string | null;
